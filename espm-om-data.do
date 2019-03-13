@@ -40,6 +40,9 @@ lab def rc 1 "white" 2 "black" 3 "other", replace
 lab val race rc
 lab var race "race"
 
+gen imm = (R0028400 == 7) if !mi(R0028400)
+lab var imm "immigrant"
+
 gen pimm = ( R0029000 != 1 | R0029100 != 1 )
 replace pimm = . if mi(R0029000)  & mi(R0029100)
 lab var pimm "1 or 2 parents foreign-born"
@@ -54,22 +57,37 @@ foreach y in 66 67 69 71 73 75 76 78 80 81 83 90 {
   replace rmar = 3 if (`v' == 4 | `v' == 5) & (rmar	== 1 | mi(rmar))
   replace rmar = 4 if (`v' == 6           ) & (            mi(rmar))
 }
+lab def rm 1 "married" 2 "widow" 3 "separated" 4 "never", replace
+lab val rmar rm
+lab var rmar "marital history"
 
 recode R0029700 (1 = 1) (2/max = 0), gen(pmar)
 lab def pm 0 "other" 1 "2 bio parents", replace
 lab val pmar pm
-lab var pm "age 15 family structure"
+lab var pmar "age 15 family structure"
+
+recode R0029600 (1 2 = 3) (2 4 = 2) (5 6 = 1), gen(pres)
+lab def pr 1 "rural" 2 "town" 3 "city", replace
+lab val pres pr
+lab var pres "city size age 15"
+
+recode R0002500 (1 2 3 = 3) (4/7 = 2) (8 = 1), gen(res)
+lab val res pr
+lab var res "city size"
+
+rename R0287052 sth
+lab var sth "living in South"
 
 recode R0056400 (0/11 = 1) (12 = 2) (13/18 = 3), gen(redu)
 lab def re 1 "0-11 yrs" 2 "12 yrs" 3 "13-18 yrs", replace
 lab val redu re
-lab var redu "R education"
+lab var redu "education"
 
 recode R0010700 (601/985 = 1) (301/555 = 2) (0/195 250/290 = 3) ///
   (200/222 = 4) (995 = .), gen(rocc)
 lab def oc 1 "manual" 2 "skilled" 3 "white collar" 4 "farm", replace
 lab val rocc oc
-lab var rocc "R occupation"
+lab var rocc "occupation"
 
 recode R0029800 (601/985 = 1) (301/555 = 2) (0/195 250/290 = 3) ///
   (200/222 = 4) (995 = .), gen(pocc)
@@ -162,9 +180,6 @@ local HH76 R0352900 R0353700 R0354500 R0355300 R0356100 R0356900 R0357700 ///
 local OH76 R0342700 R0343500 R0344300 R0345100 R0345900 R0346700 R0347500 ///
   R0348300 R0349100 R0349900 R0350700 R0351500
 
-* recode gender to match other variables
-recode `OH76' (2 = 3) (3 = 4)
-
 foreach yr in 66 67 69 76 {
   egen nc`yr' = anycount(`HH`yr'' `OH`yr''), v(2 3 4)
 }
@@ -174,19 +189,7 @@ lab var nch "number of children"
 * education
 rename R0051400 cedu66
 
-* 76 combine info for household (i), outside (o), and son in laws (s)
-local iRel R0352900 R0353700 R0354500 R0355300 R0356100 R0356900 R0357700 ///
-  R0358500 R0359300 R0360900 R0361700
-
-local iAge R0353000 R0353800 R0354600 R0355400 R0356200 R0357000 R0357800 ///
-  R0358600 R0359400 R0361000 R0361800
-
-local iEdu R0353200 R0354000 R0354800 R0355600 R0356400 R0357200 R0358000 ///
-  R0358800 R0359600 R0361200 R0362000
-
-local oRel R0342700 R0343500 R0344300 R0345100 R0345900 R0346700 R0347500 ///
-  R0348300 R0349100 R0349900 R0350700 R0351500
-
+* 76 
 local oAge R0342800 R0343600 R0344400 R0345200 R0346000 R0346800 R0347600 ///
   R0348400 R0349200 R0350000 R0350800 R0351600
 
@@ -196,35 +199,95 @@ local oEdu R0342900 R0343700 R0344500 R0345300 R0346100 R0346900 R0347700 ///
 local sEdu R0343300 R0344100 R0344900 R0345700 R0346500 R0347300 R0348100 ///
   R0348900 R0349700 R0350500 R0351300 R0352100
   
-* drop adult children under 25
-foreach v in Edu {
-  foreach h in o i s {
-    local agehold "``h'Age'"
-    local varhold "``h'`v''"
-    local relhold "``h'Rel'"
+* filter adult children over 25
+forval i = 1/12 {
+  gettoken age oAge : oAge
+  gettoken oed oEdu : oEdu  
+  gettoken sed sEdu : sEdu
 
-    while "`varhold'"!="" {
-      gettoken newv varhold : varhold
-      gettoken cage agehold : agehold
-      gettoken relv relhold : relhold
-
-      qui gen `newv'25 = `newv'
-      if "`h'" != "s" qui replace `newv'25 = . if `cage' < 25
-      if "`h'" == "i" qui replace `newv'25 = . if `relv' < 2 | `relv' > 4
-
-      local `h'`v'25 "``h'`v'25' `newv'25"
-    }
-  }
+  qui gen r`oed' = `oed' if `age' >= 25
+  qui gen s`sed' = `sed' if `age' >= 25
+  qui gen r`age' = `age' if `age' >= 25
+  
+  local roEdu "`roEdu' r`oed'"
+  local rsEdu "`rsEdu' s`sed'"
+  local roAge "`roAge' r`age'"
 }
 
-egen cedu76 = rowmax(`oEdu25' `iEdu25' `sEdu25')
-egen cedumx = rowmax(cedu66 cedu76)
-recode cedumx (0/12 = 1)(13/15 = 2) (16/18 = 3), gen(cedu)
+* determine max education and age
+egen cedumax = rowmax(`roEdu' `rsEdu')
+
+gen ceduage = .
+forval i = 1/12 {
+  gettoken oed roEdu : roEdu
+  gettoken sed rsEdu : rsEdu
+  gettoken age roAge : roAge
+  
+  replace ceduage = `age' if `oed' == cedumax & !mi(`oed') & ceduage > `age'
+  replace ceduage = `age' if `sed' == cedumax & !mi(`sed') & ceduage > `age'
+}
+
+recode cedumax (0/12 = 1)(13/15 = 2) (16/18 = 3), gen(cedu)
 lab def ce 1 "0-12 yrs" 2 "13-15 yrs" 3 "16-18 yrs", replace
 lab val cedu ce
 lab var cedu "max adult child education"
+lab var ceduage "age of adult child with max education"
 
+* mediators
 
+* financial assistance from 80 & 90
+gen fna = ( (R0540100 == 1 | R0540100 == 2) & R0540200 == 1 ) ///
+  if !mi(R0540100) & !mi(R0540200)
+replace fna = 1 if R0661100 == 1 | R0661100 == 2
+lab var fna "adult child for financial assistance 80/90"
 
+* personal assistance from 80 & 90
+gen pra = ( (R0540800 == 1 | R0540800 == 2) & R0540900 == 1 ) ///
+  if !mi(R0540800) & !mi(R0540900)
+replace pra = 1 if R0661500 == 1 & ( R0661600 == 2 | R0661600 == 3 )
+lab var pra "adult child for personal assistance 80/90"
 
-  
+* drinking from 90
+recode R0628900 (0 = 6)
+gen drkf = 6 - R0720700 if !mi(R0720700)
+replace drkf = 6 - R0628900 if mi(drkf) & !mi(R0628900)
+replace drkf = 0 if R0628600 == 0 | R0720400 == 0 
+lab def df 0 "0" 1 "< 1/m" 2 "1-3/m" 3 "1-2/w" 4 "3-6/w" 5 "every day", replace
+lab val drkf df
+lab var drkf "drinking frequency 90"
+
+gen drka = 7 - R0720800 if !mi(R0720800)
+replace drka = 7 - R0628800 if mi(drka) & !mi(R0628800)
+replace drka = 0 if R0628600 == 0 | R0720400 == 0 
+lab def da 0 "0" 1 "1" 2 "2" 3 "3 or 4" 4 "5 or 6" 5 "7-11" 6 "12+", replace
+lab val drka da
+lab var drka "drinking amount 90"
+
+* smoking
+gen ceduyr = 1976 - (ceduage - 25)
+gen ssmkyr = (1966 - age66) + R0628400
+replace ssmkyr = (1966 - age66) + R0719700 if mi(ssmkyr)
+
+rename R0627700 csmk
+replace csmk = 0 if R0719600 == 0 & mi(csmk)
+
+rename R0628100 esmk
+replace esmk = R0719600 if mi(esmk)
+replace esmk = 1 if csmk == 1
+
+* remove N = 454 past smokers who quit before adult child completed education
+replace esmk = 0 if ssmkyr < ceduyr & !mi(ssmkyr) & !mi(ceduyr)
+
+lab var csmk "current smoker 90"
+lab var esmk "ever smoked after child's edu 90"
+
+* keeping analysis variables
+order id s76 age66 aged dth race imm pimm rmar pmar pres res sth redu rocc ///
+  pedu pocc rwth rinc nch cedu fna pra drkf drka csmk esmk 
+keep id-esmk
+
+* sample selection: in 1976, have children, non-missing children's education
+keep if s76
+keep if nch > 0
+keep if !mi(cedu)
+
