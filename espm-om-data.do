@@ -57,8 +57,10 @@ foreach y in 66 67 69 71 73 75 76 78 80 81 83 90 {
   replace rmar = 3 if (`v' == 4 | `v' == 5) & (rmar	== 1 | mi(rmar))
   replace rmar = 4 if (`v' == 6           ) & (            mi(rmar))
 }
-lab def rm 1 "married" 2 "widow" 3 "separated" 4 "never", replace
-lab val rmar rm
+lab def rm1 1 "married" 2 "widow" 3 "separated" 4 "never", replace
+
+* recoding due to small N
+recode rmar (1 = 1) (2 3 4 = 0)
 lab var rmar "marital history"
 
 recode R0029700 (1 = 1) (2/max = 0), gen(pmar)
@@ -295,6 +297,7 @@ keep id-esmk
 keep if s76
 keep if nch > 0
 keep if !mi(cedu)
+keep if race != 3
 
 * sample selection: non-missing on covariates (except parent education)
 * dropping N = 289, 12%
