@@ -259,6 +259,7 @@ lab var drkf "drinking frequency 90"
 gen drka = 7 - R0720800 if !mi(R0720800)
 replace drka = 7 - R0628800 if mi(drka) & !mi(R0628800)
 replace drka = 0 if R0628600 == 0 | R0720400 == 0 
+replace drka = 0 if drkf == 0 & mi(drka)
 lab def da 0 "0" 1 "1" 2 "2" 3 "3 or 4" 4 "5 or 6" 5 "7-11" 6 "12+", replace
 lab val drka da
 lab var drka "drinking amount 90"
@@ -278,6 +279,10 @@ replace esmk = 1 if csmk == 1
 * remove N = 454 past smokers who quit before adult child completed education
 replace esmk = 0 if ssmkyr < ceduyr & !mi(ssmkyr) & !mi(ceduyr)
 
+* filling in current smoking
+replace csmk = 0 if esmk == 0
+replace csmk = 0 if esmk == 1 & mi(csmk)
+
 lab var csmk "current smoker 90"
 lab var esmk "ever smoked after child's edu 90"
 
@@ -291,3 +296,9 @@ keep if s76
 keep if nch > 0
 keep if !mi(cedu)
 
+* sample selection: non-missing on covariates (except parent education)
+* dropping N = 289, 12%
+keep if !mi(imm, pimm, pmar, pres, redu, rocc, pocc, rwth, rinc)
+
+* saving data for analysis
+save espm-om-data, replace
