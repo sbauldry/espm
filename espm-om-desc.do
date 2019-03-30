@@ -11,6 +11,24 @@ use espm-om-data, replace
 gen age76 = age66 + 10
 stset aged, failure(dth) origin(time age76)
 
+sts graph, ylab(, angle(h) grid gstyle(dot)) xlab(, grid gstyle(dot))
+graph export ~/desktop/espm-paa-19-ms-fig1.pdf, replace
+
+
+*** focal covariates
+tab dth
+tab cedu
+
+tab fna
+tab pra
+
+sum drkf drka if !mi(drkf) & !mi(drka)
+
+tab csmk if esmk == 1
+
+
+
+
 *** drinking
 preserve
 drop if mi(drkf, drka)
